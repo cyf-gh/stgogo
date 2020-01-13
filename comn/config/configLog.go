@@ -1,20 +1,27 @@
 package st_config_log
 
 import (
+	"fmt"
 	"github.com/kpango/glg"
+	"net/http"
+	"os"
+	"time"
 )
 
 // NetWorkLogger sample network logger
 type NetWorkLogger struct{}
 
+
 func (n NetWorkLogger) Write(b []byte) (int, error) {
-	http.Get(VtLogAddr+"/log")
+	http.Get(logAddr+"/log")
 	glg.Success("Requested")
 	glg.Infof("RawString is %s", glg.RawString(b))
 	return 1, nil
 }
+var logAddr string
 var infoLog *os.File
 var errLog *os.File
+var lLog *os.File
 
 func getTodayDate() string {
 	t := time.Now()
@@ -22,15 +29,15 @@ func getTodayDate() string {
 		t.Month(), t.Day())
 }
 
-func Start() {
+func Start( logIPAddr string, flushLogInterval_ms time.Duration ) {
 	// var errWriter io.Writer
 	// var customWriter io.Writer
-
+	logAddr = logIPAddr
 	infoLog = glg.FileWriter( "./log/"+getTodayDate()+"/info.log", os.ModeAppend)
 
 	customTag := "FINE"
 	customErrTag := "CRIT"
-
+	lLog = glg.FileWriter("./log/"+getTodayDate()+"/perm.log", os.ModeAppend)
 	errLog = glg.FileWriter("./log/"+getTodayDate()+"/error.log", os.ModeAppend)
 
 	glg.Get().
@@ -52,6 +59,7 @@ func Start() {
 		// SetLevelWriter(glg.ERR, customWriter).
 		AddLevelWriter(glg.INFO, infoLog). // add info log file destination
 		AddLevelWriter(glg.ERR, errLog). // add error log file destination
+		AddLevelWriter(glg.LOG, lLog). // add error log file destination
 		AddStdLevel(customTag, glg.STD, false).                    //user custom log level
 		AddErrLevel(customErrTag, glg.STD, true).                  // user custom error log level
 		SetLevelColor(glg.TagStringToLevel(customTag), glg.Cyan).  // set color output to user custom level
@@ -86,10 +94,27 @@ func Start() {
 			Info("glg HTTP server logger")
 	}))
 
-	go http.ListenAndServe(VtLogAddr, nil)
+	go http.ListenAndServe(logAddr, nil)
+
+	go func() {
+		if flushLogInterval_ms == 0 {
+			flushLogInterval_ms = 2000 // DEFAULT: flush to file per 2 seconds
+		}
+		for {
+			time.Sleep( flushLogInterval_ms * 1000 );
+			FlushLogFile();
+		}
+	}()
 }
 
 func End() {
 	infoLog.Close()
 	errLog.Close()
+	lLog.Close()
+}
+
+func FlushLogFile() {
+	infoLog.Sync()
+	errLog.Sync()
+	lLog.Sync()
 }

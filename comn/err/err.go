@@ -7,7 +7,7 @@ import (
 func Exsit( err error ) bool {
 	if err != nil {
 		glg.Error( err )
-		return false
+		return true
 	}
-	return true
+	return false
 }
